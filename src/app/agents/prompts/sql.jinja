@@ -1,0 +1,25 @@
+{# 
+    Parameters:
+        table: string, the name of the table.
+        columns: list of dictionaries with keys "name" and "is_numeric".
+        filters: list of dictionaries with keys "column", "operator", and "value".
+#}
+
+{% set numeric_columns = [] %}
+{% for col in columns %}
+        {% if col.is_numeric %}
+                {% set numeric_columns = numeric_columns + [col.name] %}
+        {% endif %}
+{% endfor %}
+
+SELECT
+{% for col in numeric_columns %}
+        SUM({{ col }}) AS total_{{ col }}{% if not loop.last %},{% endif %}
+{% endfor %}
+FROM {{ table }}
+WHERE 1=1
+{% for filter in filters %}
+    AND {{ filter.column }} {{ filter.operator }} 
+            {# If the value is a string, wrap it in quotes #}
+            {% if filter.value is string %}'{{ filter.value }}'{% else %}{{ filter.value }}{% endif %}
+{% endfor %}

@@ -1,0 +1,60 @@
+import pandas as pd
+import numpy as np
+import io
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+
+# CSV data string
+
+csv_data = """
+feature,target,col3,col4\n1,2,11,0.5\n2,4,12,1.0\n3,6,13,1.5\n4,8,14,2.0\n5,10,15,2.5\n6,12,16,3.0\n7,14,17,3.5\n8,16,18,4.0\n9,18,19,4.5\n10,20,20,5.0\n11,22,21,5.5\n12,24,22,6.0\n13,26,23,6.5\n14,28,24,7.0\n15,30,25,7.5\n16,32,26,8.0\n17,34,27,8.5\n18,36,28,9.0\n19,38,29,9.5\n20,40,30,10.0\n21,42,31,10.5\n22,44,32,11.0\n23,46,33,11.5\n24,48,34,12.0\n25,50,35,12.5\n26,52,36,13.0\n27,54,37,13.5\n28,56,38,14.0\n29,58,39,14.5\n30,60,40,15.0\n31,62,41,15.5\n32,64,42,16.0\n33,66,43,16.5\n34,68,44,17.0\n35,70,45,17.5\n36,72,46,18.0\n37,74,47,18.5\n38,76,48,19.0\n39,78,49,19.5\n40,80,50,20.0\n41,82,51,20.5\n42,84,52,21.0\n43,86,53,21.5\n44,88,54,22.0\n45,90,55,22.5\n46,92,56,23.0\n47,94,57,23.5\n48,96,58,24.0\n49,98,59,24.5\n50,100,60,25.0\n51,102,61,25.5\n52,104,62,26.0\n53,106,63,26.5\n54,108,64,27.0\n55,110,65,27.5\n56,112,66,28.0\n57,114,67,28.5\n58,116,68,29.0\n59,118,69,29.5\n60,120,70,30.0\n61,122,71,30.5\n62,124,72,31.0\n63,126,73,31.5\n64,128,74,32.0\n65,130,75,32.5\n66,132,76,33.0\n67,134,77,33.5\n68,136,78,34.0\n69,138,79,34.5\n70,140,80,35.0\n71,142,81,35.5\n72,144,82,36.0\n73,146,83,36.5\n74,148,84,37.0\n75,150,85,37.5\n76,152,86,38.0\n77,154,87,38.5\n78,156,88,39.0\n79,158,89,39.5\n80,160,90,40.0\n81,162,91,40.5\n82,164,92,41.0\n83,166,93,41.5\n84,168,94,42.0\n85,170,95,42.5\n86,172,96,43.0\n87,174,97,43.5\n88,176,98,44.0\n89,178,99,44.5\n90,180,100,45.0\n91,182,101,45.5\n92,184,102,46.0\n93,186,103,46.5\n94,188,104,47.0\n95,190,105,47.5\n96,192,106,48.0\n97,194,107,48.5\n98,196,108,49.0\n99,198,109,49.5\n100,200,110,50.0\n"""\n\n
+
+def load_data(data_string):
+     # Use StringIO to simulate a file object
+     return pd.read_csv(io.StringIO(data_string))
+     
+def perform_analysis(df):
+    results = {}
+    # Descriptive statistics
+    results[\'descriptive_stats\'] = df.describe().to_dict()
+    # Correlation Matrix
+    results[\'correlations\'] = df.corr().to_dict()
+    # Linear Regression using scikit-learn for feature vs target
+    X = df[[\'feature\']].values
+    y = df[\'target\'].values
+    model = LinearRegression()
+    model.fit(X, y)
+    predictions = model.predict(X)
+    
+    results[\'sklearn_regression\'] = {
+        \'coefficient\': model.coef_[0],
+        \'intercept\': model.intercept_,
+        \'r2_score\': r2_score(y, predictions),
+        \'mse\': mean_squared_error(y, predictions)\n    }
+        # Linear regression using scipy.stats.linregress
+        
+        linreg_result = stats.linregress(df[\'feature\'], df[\'target\'])\n    results[\'scipy_linregress\'] = {
+            \'slope\': linreg_result.slope,
+            \'intercept\': linreg_result.intercept,
+            \'rvalue\': linreg_result.rvalue,
+            \'pvalue\': linreg_result.pvalue,
+            \'stderr\': linreg_result.stderr\n    }
+            return results
+            
+def visualize_data(df):
+    # Create a scatter plot with regression line using seaborn
+    plt.figure(figsize=(10, 6))
+    sns.scatterplot(
+        data=df, x=\'feature\', y=\'target\', label=\'Data Points\', color=\'blue\'
+    )
+    sns.regplot(
+        data=df, x=\'feature\', y=\'target\', scatter=False, label=\'Regression Line\', color=\'red\'
+    )
+    plt.title(\'Feature vs Target with Regression Line\')
+    plt.xlabel(\'Feature\')
+    plt.ylabel(\'Target\')\n    plt.legend()\n    plt.tight_layout()\n
+    # Save the plot as file
+    plt.savefig(\'feature_target_regression.png\')\n    plt.close()\n\n\ndef main():\n    # Load the data\n    df = load_data(csv_data)\n\n    # Perform analysis\n    analysis_results = perform_analysis(df)\n\n    # Print the results\n    print(\'Descriptive Statistics:\')\n    for key, value in analysis_results[\'descriptive_stats\'].items():\n        print(f"{key}: {value}")\n    print(\'\\nCorrelation Matrix:\')\n    for key, value in analysis_results[\'correlations\'].items():\n        print(f"{key}: {value}")\n\n    print(\'\\nScikit-Learn Linear Regression Results:\')\n    for key, value in analysis_results[\'sklearn_regression\'].items():\n        print(f"{key}: {value}")\n\n    print(\'\\nScipy Linregress Results:\')\n    for key, value in analysis_results[\'scipy_linregress\'].items():\n        print(f"{key}: {value}")\n\n    # Visualize the data\n    visualize_data(df)\n    print(\'\\nVisualization saved as feature_target_regression.png\')\n\n\nif __name__ == \'__main__\':\n    main()\n'
