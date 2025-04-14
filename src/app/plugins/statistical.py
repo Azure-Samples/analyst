@@ -8,7 +8,7 @@ from semantic_kernel.functions.kernel_function_decorator import kernel_function
 class StatisticalAnalysisPlugin:
     """
     A plugin for performing comprehensive statistical analysis.
-    
+
     This plugin provides:
       - Descriptive statistics: mode, median, mean, standard deviation,
         variance, coefficient of variation, kurtosis, skewness,
@@ -51,14 +51,14 @@ class StatisticalAnalysisPlugin:
         stats_dict['variance'] = np.var(data, ddof=1)
         stats_dict['coefficient_of_variation'] = (stats_dict['std'] / stats_dict['mean']
                                                   if stats_dict['mean'] != 0 else np.nan)
-        
+
         stats_dict['kurtosis'] = stats.kurtosis(data, fisher=True, bias=False, nan_policy='omit')
         stats_dict['skewness'] = stats.skew(data, bias=False, nan_policy='omit')
 
         pct_values = np.percentile(data, percentiles)
         for perc, value in zip(percentiles, pct_values):
             stats_dict[f'percentile_{perc}'] = value
-        
+
         return stats_dict
 
     @kernel_function(

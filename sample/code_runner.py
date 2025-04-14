@@ -17,8 +17,6 @@ from semantic_kernel.connectors.ai import FunctionChoiceBehavior
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion, AzureChatPromptExecutionSettings
 from semantic_kernel.functions.kernel_function_decorator import kernel_function
 from semantic_kernel.functions.kernel_arguments import KernelArguments
-from semantic_kernel.functions.kernel_plugin import KernelPlugin
-from semantic_kernel.exceptions import ServiceResponseException
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_FILE = os.path.join(BASE_DIR, ".env")
@@ -44,87 +42,93 @@ AVAILABLE_MODELS: list[AzureChatCompletion] = [
         api_key=AZURE_MODEL_KEY,
         deployment_name="gpt-4o-mini",
         endpoint=AZURE_MODEL_URL
-    ),
-    AzureChatCompletion(
-        service_id="reasoning",
-        api_key=AZURE_MODEL_KEY,
-        deployment_name="o3-mini",
-        endpoint=AZURE_MODEL_URL,
-        api_version="2024-12-01-preview",
     )
 ]
 
-@kernel_function(
-    name="ExecuteCode",
-    description="Execute python code using the current interpreter. The code reads a CSV file (path provided as argument), performs analysis, and outputs results. The output is captured and written to a PDF file."
-)
-def run_generated_code(generated_code):
+class ExecuteCodePlugin:
     """
-    Executes the provided Python code using the current interpreter.
-    
-    The generated code is expected to have the CSV data embedded within it.
-    The function captures the code's stdout and stderr and writes the stdout 
-    to a PDF file named 'analysis_output.pdf'.
-    
-    Returns:
-        tuple: (stdout, stderr, pdf_file_path)
+    A plugin to execute Python code in a secure environment and generate a PDF report.
     """
-    # Write the generated code to a temporary file.
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
-        code_file = tmp.name
-        tmp.write(generated_code)
-    
-    # Build the command to run the code using the current Python interpreter.
-    cmd = [sys.executable, os.path.abspath(code_file)]
-    
-    try:
-        # Execute the code and capture its output.
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        stdout = result.stdout
-        stderr = result.stderr
-    except subprocess.TimeoutExpired:
-        stdout = ""
-        stderr = "Execution timed out."
-    finally:
-        # Clean up the temporary file.
-        os.remove(code_file)
-    
-    # Create a PDF file with the captured stdout.
-    pdf_file = os.path.join(os.getcwd(), "analysis_output.pdf")
-    c = canvas.Canvas(pdf_file, pagesize=letter)
-    width, height = letter
-    text_object = c.beginText(40, height - 40)
-    for line in stdout.splitlines():
-        text_object.textLine(line)
-    c.drawText(text_object)
-    c.save()
-    
-    return stdout, stderr, pdf_file
+    @kernel_function(
+        name="ExecuteCode",
+        description="Execute python code using the current interpreter. The code reads a CSV file (path provided as argument), performs analysis, and outputs results. The output is captured and written to a PDF file."
+    )
+    def run_generated_code(self, generated_code):
+        """
+        Executes the provided Python code using the current interpreter.
+        
+        The generated code is expected to have the CSV data embedded within it.
+        The function captures the code's stdout and stderr and writes the stdout 
+        to a PDF file named 'analysis_output.pdf'.
+        
+        Returns:
+            tuple: (stdout, stderr, pdf_file_path)
+        """
+        # Write the generated code to a temporary file.
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+            code_file = tmp.name
+            tmp.write(generated_code)
+        
+        # Build the command to run the code using the current Python interpreter.
+        cmd = [sys.executable, os.path.abspath(code_file)]
+        
+        try:
+            # Execute the code and capture its output.
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            stdout = result.stdout
+            stderr = result.stderr
+        except subprocess.TimeoutExpired:
+            stdout = ""
+            stderr = "Execution timed out."
+        finally:
+            # Clean up the temporary file.
+            os.remove(code_file)
+        
+        # Create a PDF file with the captured stdout.
+        pdf_file = os.path.join(os.getcwd(), "analysis_output.pdf")
+        c = canvas.Canvas(pdf_file, pagesize=letter)
+        width, height = letter
+        text_object = c.beginText(40, height - 40)
+        for line in stdout.splitlines():
+            text_object.textLine(line)
+        c.drawText(text_object)
+        c.save()
+        
+        return stdout, stderr, pdf_file
 
 async def run_code_in_docker(prompt: str, csv: str) -> None:
     kernel = sk.Kernel()
-    for service in AVAILABLE_MODELS:
-        try:
-            kernel.add_service(service)
-        except Exception as e:
-            logger.error(f"Failed to add service {service.service_id}: {e}")
+    agent_name="reasoning"
+    try:
+        kernel.add_service(AzureChatCompletion(
+            service_id=agent_name,
+            api_key=AZURE_MODEL_KEY,
+            deployment_name="o3-mini",
+            endpoint=AZURE_MODEL_URL,
+            api_version="2024-12-01-preview",
+        ))
+    except Exception as e:
+        logger.error(f"Failed to add service reasoning: {e}")
     # Register the modified plugin with the name "ExecuteCode"
-    kernel.add_plugin(plugin=run_generated_code, plugin_name="ExecuteCode")
-    
+    kernel.add_plugin(plugin=ExecuteCodePlugin(), plugin_name="ExecuteCode")
+
     settings = AzureChatPromptExecutionSettings(
-        service_id="default",
+        service_id=agent_name,
         max_completion_tokens=4000,
         response_format={"type": "json_object"},
     )
+
+    #settings = kernel.get_prompt_execution_settings_from_service_id("reasoning")
     settings.function_choice_behavior = FunctionChoiceBehavior.Auto(auto_invoke=True)
-    
+
     agent = ChatCompletionAgent(
+        id=agent_name,
         kernel=kernel,
         name="reasoning_agent",
         instructions=prompt,
         arguments=KernelArguments(settings=settings)
     )
-    
+
     chat = ChatHistory()
     chat.add_message(ChatMessageContent(role=AuthorRole.SYSTEM, content=prompt))
     chat.add_message(ChatMessageContent(role=AuthorRole.USER, content=f'{csv}'))
@@ -138,32 +142,32 @@ async def run_code_in_docker(prompt: str, csv: str) -> None:
                 print(message.content)
                 break
 
-            if "function_call" in content_dict:
-                # Instead of manually invoking the function, simply add the function call
-                # message back to the chat history so the agent will process it on the next round.
-                if content_dict.get("function_call", {}).get("name") == "ExecuteCode":
-                    arguments = content_dict["function_call"].get("arguments", {})
-                    generated_code = arguments.get("generated_code", "")
-                    stdout, stderr, pdf_path = run_generated_code(generated_code)
-                    print(f"Execution Output:\n{stdout}")
-                    if stderr:
-                        print(f"Execution Error:\n{stderr}")
-                    print(f"PDF saved at: {pdf_path}")
-                chat.add_message(message.content)
-                print("Function call received; re-invoking agent with updated history...")
-                break  # Exit the inner loop to re-invoke the agent
-            elif "generated_code" in content_dict:
-                # If the message contains generated code, execute it.
-                generated_code = content_dict["generated_code"]
-                stdout, stderr, pdf_path = run_generated_code(generated_code)
-                print(f"Execution Output:\n{stdout}")
-                if stderr:
-                    print(f"Execution Error:\n{stderr}")
-                print(f"PDF saved at: {pdf_path}")
-            else:
-                # No function call found: assume final answer reached.
-                print(message.content)
-                break
+            # if "function_call" in content_dict:
+            #     # Instead of manually invoking the function, simply add the function call
+            #     # message back to the chat history so the agent will process it on the next round.
+            #     if content_dict.get("function_call", {}).get("name") == "ExecuteCode":
+            #         arguments = content_dict["function_call"].get("arguments", {})
+            #         generated_code = arguments.get("generated_code", "")
+            #         stdout, stderr, pdf_path = run_generated_code(generated_code)
+            #         print(f"Execution Output:\n{stdout}")
+            #         if stderr:
+            #             print(f"Execution Error:\n{stderr}")
+            #         print(f"PDF saved at: {pdf_path}")
+            #     chat.add_message(message.content)
+            #     print("Function call received; re-invoking agent with updated history...")
+            #     break  # Exit the inner loop to re-invoke the agent
+            # elif "generated_code" in content_dict:
+            #     # If the message contains generated code, execute it.
+            #     generated_code = content_dict["generated_code"]
+            #     stdout, stderr, pdf_path = run_generated_code(generated_code)
+            #     print(f"Execution Output:\n{stdout}")
+            #     if stderr:
+            #         print(f"Execution Error:\n{stderr}")
+            #     print(f"PDF saved at: {pdf_path}")
+            # else:
+            #     # No function call found: assume final answer reached.
+            #     print(message.content)
+            #     break
 
         # Check the most recent message: if it is a function call, loop again to re-invoke the agent.
         last_message = chat.messages[-1]

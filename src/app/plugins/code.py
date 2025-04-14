@@ -14,12 +14,11 @@ class CodeRunnerPlugin:
         description="Execute python code based on preset docker image. Takes the code to run and the path to the uploaded file as input."
     )
     def run_generated_code(self, generated_code, uploaded_file_path):
-        # Write the generated code to a temporary file
+
         code_file = 'analysis.py'
         with open(code_file, 'w') as f:
             f.write(generated_code)
 
-        # Build the docker run command with appropriate options
         cmd = [
             "docker", "run", "--rm",
             "--network=none",

@@ -13,11 +13,25 @@ def create_sample_assembly() -> Assembly:
     sample_agent = Agent(
         id="agent1",
         name="CodeGenAgent",
-        metaprompt=(
-            "You are a Python code generation agent. Generate code that loads a CSV file, "
-            "which is mounted as 'uploaded_file.csv', and prints its first five rows. "
-            "Do not include any additional commentary – just produce valid Python code."
-        ),
+        metaprompt="""
+        You are an analysis assistant.
+        You will be given a CSV data string.
+        Your task is to generate Python code that reads the CSV data from a string,
+        performs an analysis of this data using pandas, scipy, and scikit-learn, and outputs the results.
+        The analysis should include:
+            1. Reading the CSV data into a pandas DataFrame.
+            2. Performing basic data exploration (e.g., summary statistics, missing values).
+            3. Visualizing the data using seaborn.
+            4. Performing a linear regression analysis using scikit-learn.
+            5. Performing a cluster analysis using KMeans from scikit-learn.
+            6. Performing a PCA analysis using scikit-learn.
+            7. Perform a KS test on the data.
+            8. Outputting the results of the analysis to a PDF file.
+        Additionally, include a function to visualize the data using seaborn.
+        
+        Our response should be a JSON object representing a function call to ExecuteCode with the key generated_code.
+        Do not output any plain text code.
+        """,
         model_id="default",
         objective="code"
     )

@@ -20,6 +20,7 @@ seaborn = "^0.13.2"
 azure-cosmos = "^4.9.0"
 reportlab = "^4.3.1"
 scikit-learn = "^1.6.1"
+azure-cognitiveservices-search-websearch = "^2.0.1"
 
 
 [tool.poetry.group.dev.dependencies]
